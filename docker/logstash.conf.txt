@@ -1,0 +1,20 @@
+input {
+  beats {
+    port => 5044
+  }
+}
+
+filter {
+  if [log][file][path] =~ "auth.log" {
+    grok {
+      match => { "message" => "%{SYSLOGTIMESTAMP:timestamp} %{SYSLOGHOST:hostname} sshd\[%{POSINT:pid}\]: %{WORD:ssh_event} password for %{DATA:user_status} %{USERNAME:user} from %{IP:src_ip} port %{POSINT:port} ssh2" }
+    }
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://elasticsearch:9200"]
+    index => "siem-logs-%{+YYYY.MM.dd}"
+  }
+}
