@@ -1,10 +1,16 @@
+# Task 3.1 - Cấu hình Filebeat thu thập log hệ thống (Người thực hiện: Võ Quang Minh Tuấn)
 filebeat.inputs:
-- type: filestream
-  id: syslog-ssh-logs
+- type: log
+  id: system-security-logs
   enabled: true
   paths:
     - /var/log/auth.log
     - /var/log/syslog
+  fields:
+    log_source: "ubuntu_target_server"
+  fields_under_root: true
 
 output.logstash:
   hosts: ["logstash:5044"]
+
+logging.level: info
