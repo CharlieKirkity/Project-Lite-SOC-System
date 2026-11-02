@@ -1,40 +1,27 @@
 import requests
 
-TOKEN = "8725786598:AAHDxLC-DCtg5m84YK6S_VHHqxPIQJ6QU4w"
-CHAT_ID = "-5078049080"
-
-def send_soc_alert():
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+def trigger_luan_bot(ip, user, pid):
+    bot_token = "8725786598:AAHDxLC-DCtg5m84YK6S_VHHqxPIQJ6QU4w"
+    chat_id = "-5078049080"
     
-    message = (
-        "🚨 *CẢNH BÁO BẢO MẬT SOC* 🚨\n\n"
-        "• *Sự kiện:* Phát hiện đăng nhập SSH sai liên tục từ IP lạ.\n"
-        "• *IP:* `192.168.1.100`\n"
-        "• *Mức độ:* Nghiêm trọng!"
-    )
-    
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown",
-        "reply_markup": {
-            "inline_keyboard": [
-                [
-                    {"text": "🚫 Block IP", "callback_data": "block_ip"},
-                    {"text": "💀 Kill Process", "callback_data": "kill_process"}
-                ],
-                [
-                    {"text": "🔒 Lock User", "callback_data": "lock_user"}
-                ]
+    # Định dạng tin nhắn và Nút bấm y hệt chuẩn của Luân
+    text = f"🚨 <b>[CRITICAL ALERT DETECTED]</b> 🚨\n\n<b>Source IP:</b> {ip}\n<b>Target User:</b> {user}\n<b>Process ID:</b> {pid}"
+    reply_markup = {
+        "inline_keyboard": [
+            [
+                {"text": "🚫 Block IP", "callback_data": f"block_ip|{ip}"},
+                {"text": "💀 Kill Process", "callback_data": f"kill_pid|{pid}"}
+            ],
+            [
+                {"text": "🔒 Lock User", "callback_data": f"lock_user|{user}"},
+                {"text": "❌ Ignore Alert", "callback_data": "ignore"}
             ]
-        }
+        ]
     }
     
-    response = requests.post(url, json=payload)
-    if response.status_code == 200:
-        print("Đã gửi tin nhắn cảnh báo thành công!")
-    else:
-        print("Lỗi khi gửi tin nhắn:", response.text)
+    # Bắn tín hiệu lên API của Telegram
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "reply_markup": reply_markup})
 
-if __name__ == "__main__":
-    send_soc_alert()
+# Ví dụ khi Script của Tuấn bắt được hacker:
+# trigger_luan_bot("192.168.1.99", "root", "5678")
