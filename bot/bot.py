@@ -1,27 +1,75 @@
-import requests
+import os
+import time
+import threading
+import subprocess
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from correlation_engine import detect_attack_chains
 
-def trigger_luan_bot(ip, user, pid):
-    bot_token = "8725786598:AAHDxLC-DCtg5m84YK6S_VHHqxPIQJ6QU4w"
-    chat_id = "-5078049080"
-    
-    # Định dạng tin nhắn và Nút bấm y hệt chuẩn của Luân
-    text = f"🚨 <b>[CRITICAL ALERT DETECTED]</b> 🚨\n\n<b>Source IP:</b> {ip}\n<b>Target User:</b> {user}\n<b>Process ID:</b> {pid}"
-    reply_markup = {
-        "inline_keyboard": [
-            [
-                {"text": "🚫 Block IP", "callback_data": f"block_ip|{ip}"},
-                {"text": "💀 Kill Process", "callback_data": f"kill_pid|{pid}"}
-            ],
-            [
-                {"text": "🔒 Lock User", "callback_data": f"lock_user|{user}"},
-                {"text": "❌ Ignore Alert", "callback_data": "ignore"}
-            ]
-        ]
+BOT_TOKEN = "8725786598:AAHDxLC-DCtg5m84YK6S_VHHqxPIQJ6QU4w"
+CHAT_ID = "7051361855" 
+SCRIPT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../playbooks"))
+
+bot = telebot.TeleBot(BOT_TOKEN)
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback(call):
+    if call.data == "ignore":
+        bot.edit_message_text("✅ Đã bỏ qua cảnh báo.", chat_id=call.message.chat.id, message_id=call.message.message_id)
+        return
+
+    action, target = call.data.split('|')
+    script_map = {
+        "block_ip": "block_ip.sh", 
+        "kill_pid": "kill_process.sh", 
+        "lock_user": "lock_user.sh"
     }
     
-    # Bắn tín hiệu lên API của Telegram
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML", "reply_markup": reply_markup})
+    script_name = script_map.get(action)
+    if script_name:
+        script_path = os.path.join(SCRIPT_DIR, script_name)
+        try:
+            bot.answer_callback_query(call.id, "Đang thực thi lệnh trên Ubuntu...")
+            res = subprocess.run(["sudo", "bash", script_path, target], capture_output=True, text=True)
+            output = res.stdout.strip() or res.stderr.strip()
+            
+            bot.edit_message_text(f"⚡ *KẾT QUẢ SOAR:*\n`{output}`", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
+        except Exception as e:
+            bot.answer_callback_query(call.id, f"Lỗi thực thi: {e}")
 
-# Ví dụ khi Script của Tuấn bắt được hacker:
-# trigger_luan_bot("192.168.1.99", "root", "5678")
+def alert_scanner():
+    alerted_keys = set()
+    while True:
+        try:
+            alerts = detect_attack_chains()
+            for alert in alerts:
+                if alert['severity'] == "CRITICAL":
+                    alert_key = f"{alert['src_ip']}_{alert['timestamp']}"
+                    
+                    if alert_key not in alerted_keys:
+                        alerted_keys.add(alert_key)
+                        
+                        text = (f"🚨 <b>[CRITICAL ALERT DETECTED]</b>\n\n"
+                                f"🌐 <b>Source IP:</b> {alert['src_ip']}\n"
+                                f"🎯 <b>Target User:</b> {alert['user']}\n"
+                                f"⚙️ <b>Process ID:</b> {alert['pid']}\n\n"
+                                f"⚠️ <b>{alert['description']}</b>")
+                        
+                        markup = InlineKeyboardMarkup()
+                        markup.add(
+                            InlineKeyboardButton("🛡️ Block IP", callback_data=f"block_ip|{alert['src_ip']}"),
+                            InlineKeyboardButton("💀 Kill Process", callback_data=f"kill_pid|{alert['pid']}")
+                        )
+                        markup.add(
+                            InlineKeyboardButton("🔒 Lock User", callback_data=f"lock_user|{alert['user']}"),
+                            InlineKeyboardButton("❌ Ignore Alert", callback_data="ignore")
+                        )
+bot.send_message(CHAT_ID, text, parse_mode="HTML", reply_markup=markup)
+        except Exception as e:
+            pass
+        time.sleep(10)
+
+if __name__ == "__main__":
+    print("🚀 Telegram Bot SOC đang chạy và liên kết với SIEM...")
+    threading.Thread(target=alert_scanner, daemon=True).start()
+    bot.infinity_polling()
