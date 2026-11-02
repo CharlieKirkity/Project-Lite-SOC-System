@@ -5,12 +5,11 @@ filebeat.inputs:
   enabled: true
   paths:
     - /var/log/auth.log
-    - /var/log/syslog
   fields:
     log_source: "ubuntu_target_server"
   fields_under_root: true
 
 output.logstash:
-  hosts: ["logstash:5044"]
+  hosts: ["127.0.0.1:5044"]
 
 logging.level: info
