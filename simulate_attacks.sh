@@ -55,3 +55,6 @@ curl -s -X POST "http://localhost:9200/$TODAY_INDEX/_doc" -H "Content-Type: appl
 curl -s -X POST "http://localhost:9200/$TODAY_INDEX/_refresh" >/dev/null
 echo " -> Đã ghi nhận sự kiện đăng nhập thành công và leo thang đặc quyền đọc /etc/shadow."
 echo "=== HOÀN TẤT MÔ PHỎNG! ==="
+for i in {1..6}; do
+    sshpass -p "mat_khau_sai" ssh -o StrictHostKeyChecking=no -o NumberOfPasswordPrompts=1 faker@192.168.205.128 2>/dev/null
+done

@@ -7,7 +7,11 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from correlation_engine import detect_attack_chains
 
 BOT_TOKEN = "8725786598:AAHDxLC-DCtg5m84YK6S_VHHqxPIQJ6QU4w"
-CHAT_ID = "7051361855" 
+
+# Điền Chat ID của Luân (và thêm ID của Huy cách nhau bằng dấu phẩy nếu muốn cả 2 cùng nhận)
+# Ví dụ: CHAT_IDS = ["7051361855", "ID_CUA_HUY"]
+CHAT_IDS = ["7051361855"]
+
 SCRIPT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../playbooks"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -17,8 +21,8 @@ def handle_callback(call):
     if call.data == "ignore":
         try:
             bot.edit_message_text("✅ Đã bỏ qua cảnh báo.", chat_id=call.message.chat.id, message_id=call.message.message_id)
-        except:
-            pass
+        except Exception as e:
+            print(f"[!] Lỗi cập nhật tin nhắn: {e}")
         return
 
     action, target = call.data.split('|')
@@ -32,23 +36,22 @@ def handle_callback(call):
     if script_name:
         script_path = os.path.join(SCRIPT_DIR, script_name)
         
-        # Bỏ qua lỗi nút bấm quá hạn
         try:
             bot.answer_callback_query(call.id, "Đang thực thi lệnh trên Ubuntu...")
-        except:
+        except Exception:
             pass
 
         try:
             res = subprocess.run(["sudo", "bash", script_path, target], capture_output=True, text=True)
             output = res.stdout.strip() or res.stderr.strip()
             
-            # CẮT NGẮN KẾT QUẢ SOAR TỪ UBUNTU TRẢ VỀ NẾU NÓ QUÁ DÀI
             if len(output) > 2000:
                 output = output[:2000] + "\n\n... [KẾT QUẢ ĐÃ BỊ CẮT BỚT DO QUÁ DÀI]"
             
             bot.edit_message_text(f"⚡ *KẾT QUẢ SOAR:*\n`{output}`", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="Markdown")
+            print(f"[+] Đã thực thi SOAR: {action} -> {target}")
         except Exception as e:
-            pass
+            print(f"[!] Lỗi thực thi Playbook: {e}")
 
 def alert_scanner():
     alerted_keys = set()
@@ -81,13 +84,24 @@ def alert_scanner():
                             InlineKeyboardButton("🔒 Lock User", callback_data=f"lock_user|{alert['user']}"),
                             InlineKeyboardButton("❌ Ignore Alert", callback_data="ignore")
                         )
-                        bot.send_message(CHAT_ID, text, parse_mode="HTML", reply_markup=markup)
+                        
+                        for cid in CHAT_IDS:
+                            try:
+                                bot.send_message(cid, text, parse_mode="HTML", reply_markup=markup)
+                                print(f"[+] Đã gửi cảnh báo CRITICAL tới Chat ID: {cid}")
+                            except Exception as send_err:
+                                print(f"[!] Không gửi được tới Chat ID {cid} (Hãy nhắc người này bấm /start với Bot): {send_err}")
         except Exception as e:
-            pass
+            print(f"[!] Lỗi quét SIEM: {e}")
         time.sleep(10)
 
 if __name__ == "__main__":
-    print("🚀 Telegram Bot SOC đang chạy và liên kết với SIEM...")
+    print("🚀 Đang xóa Webhook cũ (nếu có) và khởi động Telegram Bot SOC...")
+    try:
+        bot.remove_webhook()
+        time.sleep(1)
+    except Exception as e:
+        print(f"[!] Cảnh báo khi xóa webhook: {e}")
+    print("✅ Telegram Bot SOC đang chạy và liên kết với SIEM...")
     threading.Thread(target=alert_scanner, daemon=True).start()
-    # skip_pending=True giúp dọn dẹp các lệnh cũ bị kẹt, tránh crash bot
     bot.infinity_polling(skip_pending=True)
